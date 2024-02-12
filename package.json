@@ -1,16 +1,16 @@
 {
-  "displayName": "Daikin Heatpump Cloud",
-  "platformname": "daikinheatpumpcloud",
-  "name": "homebridge-daikin-heatpump-cloud",
-  "version": "1.4.0",
-  "description": "Integrate with the Daikin Cloud to controle your Daikin Heatpump via the cloud",
+  "displayName": "Daikin Cloud Aerothermal",
+  "platformname": "daikincloudaerothermal",
+  "name": "homebridge-daikin-cloud-aerothermal",
+  "version": "1.0.0",
+  "description": "Integrate with the Daikin Cloud to control your Daikin aerothermal device via the cloud",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/FrAcTi0N/homebridge-daikin-cloud-heat-pump.git"
+    "url": "https://github.com/shaunpearce/homebridge-daikin-cloud-aerothermal"
   },
   "bugs": {
-    "url": "https://github.com/FrAcTi0N/homebridge-daikin-cloud-heat-pump"
+    "url": "https://github.com/shaunpearce/homebridge-daikin-cloud-aerothermal"
   },
   "engines": {
     "node": ">=14.18.1",
@@ -30,7 +30,7 @@
     "node-forge": "1.3.1"
   },
   "dependencies": {
-    "daikin-controller-cloud": "^1.0.3"
+    "daikin-controller-cloud": "^1.2.4"
   },
   "devDependencies": {
     "@types/node": "^16.10.9",

@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "DaikinHeatpumpCloud",
+  "pluginAlias": "DaikinCloudAerothermal",
   "pluginType": "platform",
   "singular": true,
   "schema": {
@@ -23,7 +23,6 @@
         "required": false,
         "default": true,
         "description": "Add a Hot water tank accessory, if you you use Daikin heatpump also to warm up domestic water."
-      
       },
       "OutdoorTemperature": {
         "title": "Show Outdoor temperature",
@@ -31,14 +30,13 @@
         "required": false,
         "default": true,
         "description": "Add a Temperature accessory, that get the information from your outdoor unit, if your unit supports it."
-      
       },
       "DisableOnOff": {
         "title": "Disable on/off switching",
         "type": "boolean",
         "required": false,
         "default": false,
-        "description": "If you don't want to be able to turn your devices on/off by homekit, set this to true."    
+        "description": "If you don't want to be able to turn your devices on/off by homekit, set this to true."
       }
     }
   }
