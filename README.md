@@ -4,28 +4,28 @@ This Homebrige plugin connects to the Daikin Cloud and loads your Heat Pump devi
 
 ## This plugin will:
 
-- create a heat pump accesory, that will show current leaving water temperature, heating/cooling mode, offset
-- create a hot water tank accessory, that will show target temperature & current water tank temperature
-- create a temperature accessory that will show current outdoor temperature measured by outdoor heatpump device
+- Create a heat pump accesory, that will show current leaving water temperature, heating/cooling mode, offset
+- Create a hot water tank accessory, that will show target temperature & current water tank temperature
+- Create a temperature accessory that will show current outdoor temperature measured by outdoor heatpump device
   ![IMG_3066](https://github.com/shaunpearce/homebridge-daikin-cloud-aerothermal/assets/20327897/2eaf06f1-b47f-4121-91c9-dfb29d36d494)
 
 
 ## You will be able to:
 
-- turn on/off heat pump or water tank
-- change Heat Pump mode (heating/cooling)
-- set temperature offset for heating/cooling
+- Turn on/off heat pump or water tank
+- Change Heat Pump mode (heating/cooling)
+- Set temperature offset for heating/cooling
 ![IMG_3067](https://github.com/shaunpearce/homebridge-daikin-cloud-aerothermal/assets/20327897/60ba2e04-550b-4b53-b1a4-06a8db46a42e)
 
 
-- set temperature offset for hot watwer tank
+- Set temperature offset for hot watwer tank
  ![IMG_3068](https://github.com/shaunpearce/homebridge-daikin-cloud-aerothermal/assets/20327897/e17eb419-a734-43bc-9885-ce28ff972ad2)
 
 ## Plugin settings
 
-- you can disable on/off function
-- you can disable hot water tank accessory (may be needed, if you don't own hot water tank device)
-- you can disable outdoor temperature settings (may be needed, if you don't own hot water tank device)
+- You can disable on/off function
+- You can disable hot water tank accessory (may be needed, if you don't own hot water tank device)
+- You can disable outdoor temperature settings (may be needed, if you don't own hot water tank device)
 
 ## Limitations
 
@@ -34,10 +34,6 @@ Daikin doesn't provide target Heater/Cooler temperature. So the temperature show
 Current acessory state doesnt reflect if your device is idle/heating/cooling, because daikin doesn't provide this information (we only know the target state).
 
 Even if you set "Disable on/off switch", you are still able to switch devices on/off in homebridge accessory page (it works fine in ios home).
-
-## Install
-
-Install from NPM: https://www.npmjs.com/package/homebridge-daikin-heatpump-cloud
 
 ## Config
 
