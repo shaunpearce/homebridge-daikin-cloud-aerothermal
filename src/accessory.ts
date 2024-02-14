@@ -404,7 +404,7 @@ export class DaikinCloudWaterTankAccessory {
       "onOffMode"
     ).value;
     this.platform.log.info(
-      `[${this.name}] GET ActiveState, stateeeeeeee hereeeeee PLEASEEEEE: ${state}`
+      `[${this.name}] GET ActiveState, state: ${state}`
     );
     return state === "on";
   }
