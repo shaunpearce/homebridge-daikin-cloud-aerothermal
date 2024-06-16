@@ -90,7 +90,8 @@ export class DaikinCloudAirConditioningAccessory {
         this.platform.Characteristic.CoolingThresholdTemperature
       )
       .setProps({ minStep: 1, minValue: 7, maxValue: 22 })
-      .onGet(this.handlePumpCoolingOffsetGet.bind(this));
+      .onGet(this.handlePumpCoolingOffsetGet.bind(this))
+      .onSet(this.handlePumpCoolingOffsetSet.bind(this));
   }
 
   async handleActiveStateGet(): Promise<CharacteristicValue> {
