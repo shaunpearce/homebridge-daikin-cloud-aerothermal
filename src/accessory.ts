@@ -217,7 +217,7 @@ export class DaikinCloudAirConditioningAccessory {
     await this.accessory.context.device.setData(
       "climateControlMainZone",
       "temperatureControl",
-      "/operationModes/Cooling/setpoints/leavingWaterTemperature",
+      "/operationModes/cooling/setpoints/leavingWaterTemperature",
       temperature
     );
     await this.accessory.context.device.updateData();
