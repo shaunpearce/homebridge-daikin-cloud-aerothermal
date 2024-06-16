@@ -2,7 +2,7 @@
   "displayName": "Daikin Cloud Aerothermal",
   "platformname": "daikincloudaerothermal",
   "name": "homebridge-daikin-cloud-aerothermal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Integrate with the Daikin Cloud to control your Daikin aerothermal device via the cloud",
   "license": "Apache-2.0",
   "repository": {
