@@ -495,7 +495,8 @@ export class DaikinCloudWaterTankAccessory {
 
     switch (operationMode) {
       case "cooling":
-        return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
+        // return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
+        return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
       case "heating":
         return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
       default:
