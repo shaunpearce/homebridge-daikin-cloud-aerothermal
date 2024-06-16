@@ -213,10 +213,11 @@ export class DaikinCloudAirConditioningAccessory {
     this.platform.log.info(
       `[${this.name}] SET CoolingThresholdTemperature, temperature to: ${temperature}`
     );
+
     await this.accessory.context.device.setData(
       "climateControlMainZone",
       "temperatureControl",
-      "/operationModes/Cooling/setpoints/leavingWaterOffset",
+      "/operationModes/Cooling/setpoints/leavingWaterTemperature",
       temperature
     );
     await this.accessory.context.device.updateData();
@@ -403,9 +404,7 @@ export class DaikinCloudWaterTankAccessory {
       "domesticHotWaterTank",
       "onOffMode"
     ).value;
-    this.platform.log.info(
-      `[${this.name}] GET ActiveState, state: ${state}`
-    );
+    this.platform.log.info(`[${this.name}] GET ActiveState, state: ${state}`);
     return state === "on";
   }
 
