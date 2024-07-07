@@ -12,27 +12,22 @@ import { PLATFORM_NAME, PLUGIN_NAME } from "./settings";
 import { DaikinCloudAirConditioningAccessory } from "./accessory";
 import { DaikinCloudTemperatureAccessory } from "./accessory";
 import { DaikinCloudWaterTankAccessory } from "./accessory";
+import { DaikinCloudController } from "daikin-controller-cloud/dist/index.js";
 
-import { DaikinCloudController } from "daikin-controller-cloud";
-import path from "path";
-import fs from "fs";
-
-import type * as Device from "./../node_modules/daikin-controller-cloud/lib/device.js";
-import type * as DaikinCloud from "./../node_modules/daikin-controller-cloud/index.js";
-
+import { resolve } from "node:path";
+import { DaikinCloudDevice } from "daikin-controller-cloud/dist/device";
 import { StringUtils } from "./utils/strings";
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = ONE_SECOND * 60;
 
 export type DaikinCloudAccessoryContext = {
-  device: Device;
+  device: DaikinCloudDevice;
 };
 
 export class DaikinCloudPlatform implements DynamicPlatformPlugin {
-  public readonly Service: typeof Service = this.api.hap.Service;
-  public readonly Characteristic: typeof Characteristic =
-    this.api.hap.Characteristic;
+  public readonly Service: typeof Service;
+  public readonly Characteristic: typeof Characteristic;
 
   public readonly accessories: PlatformAccessory<DaikinCloudAccessoryContext>[] =
     [];
@@ -51,10 +46,11 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
   ) {
     this.log.debug("Finished initializing platform:", this.config.name);
 
+    this.Service = this.api.hap.Service;
+    this.Characteristic = this.api.hap.Characteristic;
     this.storagePath = api.user.storagePath();
     this.updateIntervalDelay =
       ONE_MINUTE * (this.config.updateIntervalInMinutes || 15);
-
     this.controller = new DaikinCloudController({
       oidcClientId: this.config.clientId,
       oidcClientSecret: this.config.clientSecret,
@@ -62,7 +58,7 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
       oidcCallbackServerExternalAddress:
         this.config.callbackServerExternalAddress,
       oidcCallbackServerPort: this.config.callbackServerPort,
-      oidcTokenSetFilePath: path.resolve(
+      oidcTokenSetFilePath: resolve(
         this.storagePath,
         ".daikin-controller-cloud-tokenset"
       ),
@@ -72,8 +68,8 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
     this.api.on("didFinishLaunching", async () => {
       this.controller.on("authorization_request", (url) => {
         this.log.warn(`
-          Please navigate to ${url} to start the authorization flow. If it is the first time you open this url you will need to accept a security warning.
-          
+          Please navigate to ${url} to start the authorisation flow. If it is the first time you open this url you will need to accept a security warning.
+
           Important: Make sure your Daikin app Redirect URI is set to ${url} in the Daikin Developer Portal.
         `);
       });
@@ -92,27 +88,31 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
         );
       });
 
-      await this.discoverDevices();
+      await this.discoverDevices(this.controller);
       this.startUpdateDevicesInterval();
     });
   }
 
-  configureAccessory(
+  public configureAccessory(
     accessory: PlatformAccessory<DaikinCloudAccessoryContext>
   ) {
     this.log.info("Loading accessory from cache:", accessory.displayName);
     this.accessories.push(accessory);
   }
 
-  private async discoverDevices() {
-    let devices: Device[] = [];
+  private async discoverDevices(controller: DaikinCloudController) {
+    let devices: DaikinCloudDevice[] = [];
 
     this.log.info(
-      "---------- Daikin info for debugging reasons --------------------"
+      "--- Daikin info for debugging reasons (enable Debug Mode for more logs) ---"
+    );
+    this.log.debug(
+      "[Config] User config",
+      this.getPrivacyFriendlyConfig(this.config)
     );
 
     try {
-      devices = await this.controller.getCloudDevices();
+      devices = await controller.getCloudDevices();
     } catch (error) {
       if (error instanceof Error) {
         error.message = `Failed to get cloud devices from Daikin Cloud: ${error.message}`;
@@ -121,56 +121,36 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
     }
 
     devices.forEach((device) => {
-      this.log.info("Device found with id: " + device.getId() + " Data:");
-      this.log.info(
-        "    name: " + device.getData("climateControlMainZone", "name").value
-      );
-      this.log.info("    last updated: " + device.getLastUpdated());
-      this.log.info(
-        "    modelInfo: " + device.getData("gateway", "modelInfo").value
-      );
-      this.log.info("    show Hot Water Tank: " + this.config.HotWaterTank);
-      this.log.info(
-        "    show Outdoor Temperature: " + this.config.OutdoorTemperature
-      );
-      this.log.info("    disabled On/Off switch: " + this.config.DisableOnOff);
-      this.log.info("\n");
+      try {
+        const uuid = this.api.hap.uuid.generate(device.getId());
+        const climateControlEmbeddedId =
+          device.getDescription().deviceModel === "Altherma"
+            ? "climateControlMainZone"
+            : "climateControl";
+        const name: string = device.getData(
+          climateControlEmbeddedId,
+          "name",
+          undefined
+        ).value;
 
-      let uuid = this.api.hap.uuid.generate(device.getId());
+        const existingAccessory = this.accessories.find(
+          (accessory) => accessory.UUID === uuid
+        );
 
-      let existingAccessory = this.accessories.find(
-        (accessory) => accessory.UUID === uuid
-      );
-      if (existingAccessory) {
-        this.log.info(
-          "Restoring existing accessory from cache:",
-          existingAccessory.displayName
-        );
-        existingAccessory.context.device = device;
-        this.api.updatePlatformAccessories([existingAccessory]);
-        new DaikinCloudAirConditioningAccessory(this, existingAccessory);
-      } else {
-        this.log.info(
-          "Adding new accessory:",
-          device.getData("climateControlMainZone", "name").value
-        );
-        const accessory = new this.api.platformAccessory(
-          device.getData("climateControlMainZone", "name").value ||
-            "Climate Control",
-          uuid
-        );
-        accessory.context.device = device;
-        new DaikinCloudAirConditioningAccessory(this, accessory);
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-          accessory,
-        ]);
-      }
+        if (
+          this.isExcludedDevice(this.config.excludedDevicesByDeviceId, uuid)
+        ) {
+          this.log.info(
+            `Device with id ${uuid} is excluded, don't add accessory`
+          );
+          if (existingAccessory) {
+            this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+              existingAccessory,
+            ]);
+          }
+          return;
+        }
 
-      uuid = this.api.hap.uuid.generate(device.getId() + "2");
-      existingAccessory =
-        this.accessories.find((accessory) => accessory.UUID === uuid) ||
-        undefined;
-      if (this.config.HotWaterTank) {
         if (existingAccessory) {
           this.log.info(
             "Restoring existing accessory from cache:",
@@ -178,63 +158,62 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
           );
           existingAccessory.context.device = device;
           this.api.updatePlatformAccessories([existingAccessory]);
-          new DaikinCloudWaterTankAccessory(this, existingAccessory);
-        } else {
-          this.log.info(
-            "Adding new accessory:",
-            device.getData("domesticHotWaterTank", "name").value || "Hot Water"
-          );
-          const accessory = new this.api.platformAccessory(
-            device.getData("domesticHotWaterTank", "name").value || "Hot Water",
-            uuid
-          );
-          accessory.context.device = device;
-          new DaikinCloudWaterTankAccessory(this, accessory);
-          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-            accessory,
-          ]);
-        }
-      } else if (existingAccessory) {
-        this.log.info("Removing accessory:", existingAccessory.displayName);
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-          existingAccessory,
-        ]);
-      }
 
-      const type = "Outdoor Daikin";
-      uuid = this.api.hap.uuid.generate(device.getId() + type);
-      existingAccessory =
-        this.accessories.find((accessory) => accessory.UUID === uuid) ||
-        undefined;
-      if (this.config.OutdoorTemperature) {
-        if (existingAccessory) {
-          this.log.info(
-            `Restoring existing accessory ${type} from cache:`,
-            existingAccessory.displayName
-          );
-          existingAccessory.context.device = device;
-          this.api.updatePlatformAccessories([existingAccessory]);
-          new DaikinCloudTemperatureAccessory(this, existingAccessory);
+          this.addAccessory(device, existingAccessory);
         } else {
-          this.log.info(`Adding new accessory: ${type}`);
-          const accessory = new this.api.platformAccessory(type, uuid);
+          this.log.info("Adding new accessory:", name);
+          const accessory =
+            new this.api.platformAccessory<DaikinCloudAccessoryContext>(
+              name,
+              uuid
+            );
           accessory.context.device = device;
-          new DaikinCloudTemperatureAccessory(this, accessory);
+
+          this.addAccessory(device, accessory);
+
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
             accessory,
           ]);
         }
-      } else if (existingAccessory) {
-        this.log.info("Removing accessory:", existingAccessory.displayName);
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-          existingAccessory,
-        ]);
+      } catch (error) {
+        if (error instanceof Error) {
+          this.log.error(
+            `Failed to create accessory from device: ${
+              error.message
+            }, device JSON: ${JSON.stringify(device)}`
+          );
+        }
       }
     });
 
     this.log.info(
-      "---------- End Daikin info for debugging reasons ---------------"
+      "--------------- End Daikin info for debugging reasons --------------------"
     );
+  }
+
+  private addAccessory(
+    device: DaikinCloudDevice,
+    accessory: PlatformAccessory<DaikinCloudAccessoryContext>
+  ) {
+    const deviceModel = device.getDescription().deviceModel;
+
+    if (deviceModel === "Altherma") {
+      new DaikinCloudAirConditioningAccessory(this, accessory);
+      if (this.config.HotWaterTank) {
+        new DaikinCloudWaterTankAccessory(this, accessory);
+      }
+      if (this.config.OutdoorTemperature) {
+        new DaikinCloudTemperatureAccessory(this, accessory);
+      }
+    } else {
+      new DaikinCloudAirConditioningAccessory(this, accessory);
+      if (this.config.HotWaterTank) {
+        new DaikinCloudWaterTankAccessory(this, accessory);
+      }
+      if (this.config.OutdoorTemperature) {
+        new DaikinCloudTemperatureAccessory(this, accessory);
+      }
+    }
   }
 
   private async updateDevices() {
@@ -267,17 +246,283 @@ export class DaikinCloudPlatform implements DynamicPlatformPlugin {
     }, this.updateIntervalDelay);
   }
 
+  private isExcludedDevice(
+    excludedDevicesByDeviceId: Array<string>,
+    deviceId: string
+  ): boolean {
+    return (
+      typeof excludedDevicesByDeviceId !== "undefined" &&
+      excludedDevicesByDeviceId.includes(deviceId)
+    );
+  }
+
   private getPrivacyFriendlyConfig(config: PlatformConfig): object {
     return {
       ...config,
       clientId: StringUtils.mask(config.clientId),
       clientSecret: StringUtils.mask(config.clientSecret),
-      excludedDevicesByDeviceId: config.excludedDevicesByDeviceId.map(
-        (deviceId) => StringUtils.mask(deviceId)
-      ),
+      excludedDevicesByDeviceId: config.excludedDevicesByDeviceId
+        ? config.excludedDevicesByDeviceId.map((deviceId) =>
+            StringUtils.mask(deviceId)
+          )
+        : [],
     };
   }
 }
+
+// import {
+//   API,
+//   DynamicPlatformPlugin,
+//   Logger,
+//   PlatformAccessory,
+//   PlatformConfig,
+//   Service,
+//   Characteristic,
+// } from "homebridge";
+// import { PLATFORM_NAME, PLUGIN_NAME } from "./settings";
+// import {
+//   DaikinClimateControlEmbeddedId,
+//   daikinAirConditioningAccessory,
+// } from "./daikinAirConditioningAccessory";
+// import { DaikinCloudController } from "daikin-controller-cloud/dist/index.js";
+// import { daikinAlthermaAccessory } from "./daikinAlthermaAccessory";
+// import { resolve } from "node:path";
+// import { DaikinCloudDevice } from "daikin-controller-cloud/dist/device";
+// import { StringUtils } from "./utils/strings";
+
+// const ONE_SECOND = 1000;
+// const ONE_MINUTE = ONE_SECOND * 60;
+
+// export type DaikinCloudAccessoryContext = {
+//   device: DaikinCloudDevice;
+// };
+
+// export class DaikinCloudPlatform implements DynamicPlatformPlugin {
+//   public readonly Service: typeof Service;
+//   public readonly Characteristic: typeof Characteristic;
+//   public readonly accessories: PlatformAccessory<DaikinCloudAccessoryContext>[] =
+//     [];
+
+//   public readonly storagePath: string = "";
+//   public controller: DaikinCloudController;
+//   public readonly updateIntervalDelay = ONE_MINUTE * 15;
+//   public updateInterval: NodeJS.Timeout | undefined;
+//   public forceUpdateTimeout: NodeJS.Timeout | undefined;
+
+//   constructor(
+//     public readonly log: Logger,
+//     public readonly config: PlatformConfig,
+//     public readonly api: API
+//   ) {
+//     this.log.debug("Finished initializing platform:", this.config.name);
+
+//     this.Service = this.api.hap.Service;
+//     this.Characteristic = this.api.hap.Characteristic;
+//     this.storagePath = api.user.storagePath();
+//     this.updateIntervalDelay =
+//       ONE_MINUTE * (this.config.updateIntervalInMinutes || 15);
+//     this.controller = new DaikinCloudController({
+//       oidcClientId: this.config.clientId,
+//       oidcClientSecret: this.config.clientSecret,
+//       oidcCallbackServerBindAddr: this.config.oidcCallbackServerBindAddr,
+//       oidcCallbackServerExternalAddress:
+//         this.config.callbackServerExternalAddress,
+//       oidcCallbackServerPort: this.config.callbackServerPort,
+//       oidcTokenSetFilePath: resolve(
+//         this.storagePath,
+//         ".daikin-controller-cloud-tokenset"
+//       ),
+//       oidcAuthorizationTimeoutS: 60 * 5,
+//     });
+
+//     this.api.on("didFinishLaunching", async () => {
+//       this.controller.on("authorization_request", (url) => {
+//         this.log.warn(`
+//                     Please navigate to ${url} to start the authorisation flow. If it is the first time you open this url you will need to accept a security warning.
+
+//                     Important: Make sure your Daikin app Redirect URI is set to ${url} in the Daikin Developer Portal.
+//                 `);
+//       });
+
+//       this.controller.on("rate_limit_status", (rateLimitStatus) => {
+//         if (
+//           rateLimitStatus.remainingDay &&
+//           rateLimitStatus.remainingDay <= 20
+//         ) {
+//           this.log.warn(
+//             `[Rate limit remaining calls] Rate limit almost reached, you only have ${rateLimitStatus.remainingDay} calls left today`
+//           );
+//         }
+//         this.log.debug(
+//           `[Rate limit remaining calls] today: ${rateLimitStatus.remainingDay}/${rateLimitStatus.limitDay} -- this minute: ${rateLimitStatus.remainingMinute}/${rateLimitStatus.limitMinute}`
+//         );
+//       });
+
+//       await this.discoverDevices(this.controller);
+//       this.startUpdateDevicesInterval();
+//     });
+//   }
+
+//   public configureAccessory(
+//     accessory: PlatformAccessory<DaikinCloudAccessoryContext>
+//   ) {
+//     this.log.info("Loading accessory from cache:", accessory.displayName);
+//     this.accessories.push(accessory);
+//   }
+
+//   private async discoverDevices(controller: DaikinCloudController) {
+//     let devices: DaikinCloudDevice[] = [];
+
+//     this.log.info(
+//       "--- Daikin info for debugging reasons (enable Debug Mode for more logs) ---"
+//     );
+//     this.log.debug(
+//       "[Config] User config",
+//       this.getPrivacyFriendlyConfig(this.config)
+//     );
+
+//     try {
+//       devices = await controller.getCloudDevices();
+//     } catch (error) {
+//       if (error instanceof Error) {
+//         error.message = `Failed to get cloud devices from Daikin Cloud: ${error.message}`;
+//         this.log.error(error.message);
+//       }
+//     }
+
+//     devices.forEach((device) => {
+//       try {
+//         const uuid = this.api.hap.uuid.generate(device.getId());
+//         const climateControlEmbeddedId: DaikinClimateControlEmbeddedId =
+//           device.getDescription().deviceModel === "Altherma"
+//             ? "climateControlMainZone"
+//             : "climateControl";
+//         const name: string = device.getData(
+//           climateControlEmbeddedId,
+//           "name",
+//           undefined
+//         ).value;
+//         const deviceModel: string = device.getDescription().deviceModel;
+
+//         const existingAccessory = this.accessories.find(
+//           (accessory) => accessory.UUID === uuid
+//         );
+
+//         if (
+//           this.isExcludedDevice(this.config.excludedDevicesByDeviceId, uuid)
+//         ) {
+//           this.log.info(
+//             `Device with id ${uuid} is excluded, don't add accessory`
+//           );
+//           if (existingAccessory) {
+//             this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+//               existingAccessory,
+//             ]);
+//           }
+//           return;
+//         }
+
+//         if (existingAccessory) {
+//           this.log.info(
+//             "Restoring existing accessory from cache:",
+//             existingAccessory.displayName
+//           );
+//           existingAccessory.context.device = device;
+//           this.api.updatePlatformAccessories([existingAccessory]);
+
+//           if (deviceModel === "Altherma") {
+//             new daikinAlthermaAccessory(this, existingAccessory);
+//           } else {
+//             new daikinAirConditioningAccessory(this, existingAccessory);
+//           }
+//         } else {
+//           this.log.info("Adding new accessory:", name);
+//           const accessory =
+//             new this.api.platformAccessory<DaikinCloudAccessoryContext>(
+//               name,
+//               uuid
+//             );
+//           accessory.context.device = device;
+
+//           if (deviceModel === "Altherma") {
+//             new daikinAlthermaAccessory(this, accessory);
+//           } else {
+//             new daikinAirConditioningAccessory(this, accessory);
+//           }
+
+//           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+//             accessory,
+//           ]);
+//         }
+//       } catch (error) {
+//         if (error instanceof Error) {
+//           this.log.error(
+//             `Failed to create HeaterCooler accessory from device, only HeaterCooler is supported at the moment: ${
+//               error.message
+//             }, device JSON: ${JSON.stringify(device)}`
+//           );
+//         }
+//       }
+//     });
+
+//     this.log.info(
+//       "--------------- End Daikin info for debugging reasons --------------------"
+//     );
+//   }
+
+//   private async updateDevices() {
+//     this.log.debug("Update devices data");
+//     await this.controller.updateAllDeviceData();
+//   }
+
+//   forceUpdateDevices(delay: number = ONE_SECOND * 60) {
+//     this.log.debug(
+//       `Force update devices data (delay: ${delay}, update pending: ${this.forceUpdateTimeout})`
+//     );
+
+//     clearInterval(this.updateInterval);
+//     clearTimeout(this.forceUpdateTimeout);
+
+//     this.forceUpdateTimeout = setTimeout(async () => {
+//       await this.updateDevices();
+//       this.startUpdateDevicesInterval();
+//     }, delay);
+//   }
+
+//   private startUpdateDevicesInterval() {
+//     this.log.debug(
+//       `Starting update devices interval every ${
+//         this.updateIntervalDelay / ONE_MINUTE
+//       } minutes`
+//     );
+//     this.updateInterval = setInterval(async () => {
+//       await this.updateDevices();
+//     }, this.updateIntervalDelay);
+//   }
+
+//   private isExcludedDevice(
+//     excludedDevicesByDeviceId: Array<string>,
+//     deviceId: string
+//   ): boolean {
+//     return (
+//       typeof excludedDevicesByDeviceId !== "undefined" &&
+//       excludedDevicesByDeviceId.includes(deviceId)
+//     );
+//   }
+
+//   private getPrivacyFriendlyConfig(config: PlatformConfig): object {
+//     return {
+//       ...config,
+//       clientId: StringUtils.mask(config.clientId),
+//       clientSecret: StringUtils.mask(config.clientSecret),
+//       excludedDevicesByDeviceId: config.excludedDevicesByDeviceId
+//         ? config.excludedDevicesByDeviceId.map((deviceId) =>
+//             StringUtils.mask(deviceId)
+//           )
+//         : [],
+//     };
+//   }
+// }
 
 // import {
 //   API,
