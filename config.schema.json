@@ -5,38 +5,63 @@
   "schema": {
     "type": "object",
     "properties": {
-      "username": {
-        "title": "Username",
+      "clientId": {
+        "title": "Client ID",
+        "description": "The client ID of your app you created in the Daikin Developer Portal",
         "type": "string",
         "required": true,
         "default": ""
       },
-      "password": {
-        "title": "Password",
+      "clientSecret": {
+        "title": "Client Secret",
+        "description": "The client Secret of your app you created in the Daikin Developer Portal",
         "type": "string",
         "required": true,
         "default": ""
       },
-      "HotWaterTank": {
-        "title": "Show Hot water tank information",
-        "type": "boolean",
-        "required": false,
-        "default": true,
-        "description": "Add a Hot water tank accessory, if you you use Daikin heatpump also to warm up domestic water."
+      "callbackServerExternalAddress": {
+        "title": "Redirect URI address",
+        "description": "The address where the callback server is reachable. This address should be reachable from the browser you're going to do the authorisation flow. This is most likely your Homebridge instance IP address. Mind that it can't be localhost because Daikin blocks this.",
+        "type": "string",
+        "required": true,
+        "default": ""
       },
-      "OutdoorTemperature": {
-        "title": "Show Outdoor temperature",
-        "type": "boolean",
+      "callbackServerPort": {
+        "title": "Redirect URI port",
+        "description": "The port where the callback server is reachable. This port should be reachable from the browser you're going to do the authorisation flow.",
+        "type": "string",
         "required": false,
-        "default": true,
-        "description": "Add a Temperature accessory, that get the information from your outdoor unit, if your unit supports it."
+        "default": "8582"
       },
-      "DisableOnOff": {
-        "title": "Disable on/off switching",
+      "oidcCallbackServerBindAddr": {
+        "title": "Callback Server address listener",
+        "description": "Network interface that the HTTP server should bind to. Bind to all interfaces for convenience, please limit as needed to single interfaces. !Important: This often is 127.0.0.1 or 0.0.0.0 or localhost",
+        "type": "string",
+        "required": false,
+        "default": "127.0.0.1"
+      },
+      "showExtraFeatures": {
+        "title": "Show advanced features",
         "type": "boolean",
         "required": false,
         "default": false,
-        "description": "If you don't want to be able to turn your devices on/off by homekit, set this to true."
+        "description": "Expose extra advanced features as streamer mode, econo mode and powerful mode. They will only appear when they are also supported by your device."
+      },
+      "excludedDevicesByDeviceId": {
+        "title": "Exclude specific devices",
+        "type": "array",
+        "items": {
+          "title": "Device id",
+          "type": "string"
+        },
+        "description": "Exclude specific devices by their device id. You can find the device id in the Homebridge logs (debug mode does not have to be on)"
+      },
+      "updateIntervalInMinutes": {
+        "title": "Update interval in minutes",
+        "type": "integer",
+        "default": 15,
+        "minimum": 1,
+        "description": "Interval in minutes when we poll the Daikin API. Because of rate limitations we recommend to leave this at 15 minutes. This will result in 96 calls to the API per day ((24 * 60) / 15). The rate limit per day is 200."
       }
     }
   }
